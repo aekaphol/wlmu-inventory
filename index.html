@@ -241,6 +241,7 @@
   .applock .keypad{max-width:360px; width:100%; gap:14px;}
   .applock .keypad button{font-size:23px; padding:19px 0; border-radius:14px;}
   body.db-loading main{pointer-events:none;}
+  body.db-loading .owner-locked{pointer-events:auto;}
 </style>
 </head>
 <body>
@@ -469,7 +470,11 @@ onSnapshot(DB_DOC, snap=>{
   const data = snap.data();
   if(data && data.items && data.categories){
     db = migrateCategories(data);
-    if(db.ownerPinV !== 2){ db.pin = '0715'; db.ownerPinV = 2; setDoc(DB_DOC, db).catch(err=>console.error(err)); }
+    if(db.ownerPinV !== 2 && !window.__pinMigrated){
+      window.__pinMigrated = true;
+      db.pin = '0715'; db.ownerPinV = 2;
+      setDoc(DB_DOC, db).catch(err=>console.error(err));
+    }
     try{ localStorage.setItem(DB_CACHE_KEY, JSON.stringify(db)); }catch(e){}
   } else {
     db = defaultDB();
@@ -484,6 +489,7 @@ onSnapshot(DB_DOC, snap=>{
   renderAll();
 }, err=>{
   console.error(err);
+  document.getElementById('syncOverlay').classList.remove('hidden');
   document.getElementById('syncOverlay').innerHTML =
     '<h3>เชื่อมต่อไม่สำเร็จ</h3><p>ตรวจสอบอินเทอร์เน็ตแล้วลองเปิดหน้านี้ใหม่อีกครั้ง</p>';
 });
@@ -1240,6 +1246,7 @@ function showRemitSummaryModal(branch,date){
 function renderOwner(){
   const main = document.getElementById('mainOwner');
   if(!unlocked){
+    if(main.querySelector('.owner-locked .keypad')) return; // keep keypad & typed digits across live updates
     renderPinLock(main, renderOwner);
     return;
   }
