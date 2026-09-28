@@ -240,6 +240,7 @@
   .applock .lock-err{color:var(--bad); font-size:12px; min-height:16px; margin:-6px 0 10px;}
   .applock .keypad{max-width:360px; width:100%; gap:14px;}
   .applock .keypad button{font-size:23px; padding:19px 0; border-radius:14px;}
+  body.db-loading main{pointer-events:none;}
 </style>
 </head>
 <body>
@@ -396,7 +397,8 @@ function defaultDB(){
     mk('ถ่านใหญ่','fuel','กระสอบ',5,0),
   ];
   return {
-    pin:'0000',
+    pin:'0715',
+    ownerPinV:2,
     branches:['สาขาเมืองเชียงราย'],
     categories:cats,
     items:items,
@@ -445,6 +447,12 @@ let dbReady = false;
 let unlocked = false;
 let currentTab = 'remit';
 let trendRange = 7;
+const DB_CACHE_KEY = 'wl_cr_cache_v1';
+// Paint instantly from the last known copy (writes stay blocked until the live snapshot arrives)
+try{
+  const cached = JSON.parse(localStorage.getItem(DB_CACHE_KEY)||'null');
+  if(cached && cached.items && cached.categories && cached.days) db = migrateCategories(cached);
+}catch(e){}
 
 onSnapshot(DB_DOC, snap=>{
   const active = document.activeElement;
@@ -461,12 +469,15 @@ onSnapshot(DB_DOC, snap=>{
   const data = snap.data();
   if(data && data.items && data.categories){
     db = migrateCategories(data);
+    if(db.ownerPinV !== 2){ db.pin = '0715'; db.ownerPinV = 2; setDoc(DB_DOC, db).catch(err=>console.error(err)); }
+    try{ localStorage.setItem(DB_CACHE_KEY, JSON.stringify(db)); }catch(e){}
   } else {
     db = defaultDB();
     setDoc(DB_DOC, db).catch(err=>console.error(err));
   }
   if(!dbReady){
     dbReady = true;
+    document.body.classList.remove('db-loading');
     document.getElementById('syncOverlay').classList.add('hidden');
     renderHeaderSelectors();
   }
@@ -1657,6 +1668,12 @@ setupAppLock();
 function renderAll(){
   renderStats();
   renderCurrentTab();
+}
+// First paint immediately (from cache or defaults); inputs are locked until the live data arrives
+if(!dbReady && !FB_NOT_CONFIGURED){
+  document.body.classList.add('db-loading');
+  renderHeaderSelectors();
+  renderAll();
 }
 </script>
 </body>
